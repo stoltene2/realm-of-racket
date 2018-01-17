@@ -5,21 +5,23 @@
 (define IMAGE-of-UFO  (bitmap/file "assets/ufo.png"))
 
 (define WIDTH 200)
-(define HEIGHT 200)
+(define HEIGHT 300)
+(define VELOCITY 4)
 
-(struct game-state [tick])
+(struct state [tick position])
 
-(define (add-3-to-state current-state)
-  (+ current-state 3))
+(define (update-state current-state)
+  (state
+   (add1 (state-tick current-state)) (* (state-tick current-state) VELOCITY)))
 
 (define (draw-a-ufo-onto-an-empty-scene current-state)
-  (place-image IMAGE-of-UFO (/ WIDTH 2) current-state
+  (place-image IMAGE-of-UFO (/ WIDTH 2) (state-position current-state)
                (empty-scene WIDTH HEIGHT)))
 
 (define (state-matches-height current-state)
-  (>= current-state HEIGHT))
+  (>= (state-position current-state) HEIGHT))
 
-(big-bang 0
-  (on-tick add-3-to-state)
+(big-bang (state 0 0)
+  (on-tick update-state)
   (to-draw draw-a-ufo-onto-an-empty-scene)
   (stop-when state-matches-height))
