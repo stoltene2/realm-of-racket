@@ -2,7 +2,11 @@
 
 (require 2htdp/universe 2htdp/image)
 
+(define flame (overlay/align "center" "bottom" (triangle 15 'solid 'orange) (triangle 30 'solid 'red)))
+
 (define IMAGE-of-UFO  (bitmap/file "assets/ufo.png"))
+
+(define SHIP (overlay/offset IMAGE-of-UFO 0 20 flame))
 
 (define WIDTH 200)
 (define HEIGHT 600)
@@ -25,7 +29,7 @@
   (+ (* time VELOCITY) (* 1/2 ACCELERATION (sqr time))))
 
 (define (draw-a-ufo-onto-an-empty-scene current-state)
-  (place-image IMAGE-of-UFO (/ WIDTH 2) (state-position current-state)
+  (place-image SHIP (/ WIDTH 2) (state-position current-state)
                (empty-scene WIDTH HEIGHT)))
 
 (define (state-matches-height current-state)
