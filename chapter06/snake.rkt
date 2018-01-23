@@ -5,10 +5,10 @@
 
 (require rackunit)
 
-(define TICK-RATE 1)
-(define SIZE 10)
-(define ENDGAME-TEXT-SIZE (* 10 SIZE))
-(define EXPIRATION-TIME 10)
+(define TICK-RATE 1/4)
+(define SIZE 30)
+(define ENDGAME-TEXT-SIZE (* 2 SIZE))
+(define EXPIRATION-TIME (* 20 (/ 1 TICK-RATE)))
 (define EMPTY-SCENE (empty-scene (sqr SIZE) (sqr SIZE)))
 (define SEG-SIZE SIZE)
 (define SEG-IMG (square SIZE "solid" "blue"))
@@ -25,7 +25,6 @@ Ideas
 - Make a background tiling
 - Make obstacles
 - Make the goo change color as it ages
-- Make random times for goo expiration
 - Keep track of max length and score
 - Make snake grow by more than a segment if needed
 
@@ -48,8 +47,6 @@ Ideas
 (define-struct-updaters goo)
 
 ;;------------------------------------------------------------------------------
-
-
 
 
 (define (next-pit w)
@@ -173,18 +170,18 @@ Ideas
   (define (decay g)
     (goo-expire-update g sub1))
 
-  (define aged (map decay goos))
+  (define (refresh g)
+    (if (> (goo-expire g) 0)
+        g
+        (fresh-goo)))
 
-  ;;TODO: Replace rotten goo with a new random goo
-  (filter (lambda (x) (> (goo-expire x) 0))
-          aged))
+  (map (compose refresh decay) goos))
 
 
 (define (fresh-goo)
-  (goo (posn
-        (add1 (random (sub1 SIZE)))
-        (add1 (random (sub1 SIZE))))
-       EXPIRATION-TIME))
+  (goo (posn (add1 (random (sub1 SIZE)))
+             (add1 (random (sub1 SIZE))))
+       (add1 (random EXPIRATION-TIME))))
 
 
 ;;- Helper functions -----------------------------------------------------------
