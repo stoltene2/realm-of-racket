@@ -5,12 +5,13 @@
 
 (require rackunit)
 
-(define TICK-RATE 1/4)
-(define SIZE 30)
+(define TICK-RATE 1/16)
+(define SIZE 29)
 (define ENDGAME-TEXT-SIZE (* 2 SIZE))
-(define EXPIRATION-TIME (* 20 (/ 1 TICK-RATE)))
+(define EXPIRATION-TIME (* 10 (/ 1 TICK-RATE)))
 (define EMPTY-SCENE (empty-scene (sqr SIZE) (sqr SIZE)))
 (define SEG-SIZE SIZE)
+(define INITAL-GOO-COUNT 10)
 (define SEG-IMG (square SIZE "solid" "blue"))
 (define GOO-IMG (square SIZE "solid" "green"))
 (define HEAD-UP-IMG (square SIZE "solid" "red"))
@@ -33,7 +34,21 @@ Ideas
   - Different strategy for creating goos
 |#
 
-;;------------------------------------------------------------------------------
+
+;                          
+;                          
+;   ;;;;          ;;       
+;   ;   ;         ;        
+;   ;    ;        ;        
+;   ;    ;  ;;;; ;;;  ;;;  
+;   ;    ; ;    ; ;  ;   ; 
+;   ;    ; ;;;;;; ;  ;;    
+;   ;    ; ;      ;    ;;; 
+;   ;   ;  ;;   ; ;  ;   ; 
+;   ;;;;    ;;;;  ;   ;;;; 
+;                          
+;                          
+;                          
 
 (struct pit [snake goos] #:transparent)
 (define-struct-updaters pit)
@@ -46,8 +61,7 @@ Ideas
 (struct goo [loc expire] #:transparent)
 (define-struct-updaters goo)
 
-;;------------------------------------------------------------------------------
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (next-pit w)
   (define sn (pit-snake w))
@@ -109,12 +123,26 @@ Ideas
                   (can-eat sn (rest goos)))]))
 
 
-
-
 ;; TODO: Implement
 (define (render-end w)
   (overlay (text "Game Over" ENDGAME-TEXT-SIZE "red")
            (render-pit w)))
+
+
+;                                                                      
+;                                                                      
+;   ;;;;                 ;               ;;;;                          
+;  ;   ;;                ;              ;    ;                         
+;  ;    ;                ;   ;         ;      ;                        
+;  ;;       ;;;;   ;;;;  ;  ;  ;;;;    ;      ;  ;   ;  ;;;;  ; ;;    ;
+;    ;;;;   ;   ; ;    ; ; ;  ;    ;   ;      ;  ;   ; ;    ; ;;  ;  ; 
+;        ;  ;   ;     ;; ;;;  ;;;;;;   ;      ;  ;   ; ;;;;;; ;   ;  ; 
+;  ;     ;  ;   ; ;;;; ; ; ;; ;        ;   ;  ;  ;   ; ;      ;    ;;  
+;  ;;    ;  ;   ; ;    ; ;  ; ;;   ;    ;   ;;   ;   ; ;;   ; ;    ;;  
+;   ;;;;;   ;   ;  ;;;;; ;   ; ;;;;      ;;;;;    ;;;;  ;;;;  ;     ;  
+;                                             ;                    ;   
+;                                                                 ;;   
+;                                                                      
 
 ;;- Snake Query Functions ------------------------------------------------------
 
@@ -143,6 +171,23 @@ Ideas
   (posn (+ (posn-x p) dx)
         (+ (posn-y p) dy)))
 
+
+
+;                                                                    
+;                                                                    
+;   ;;;;                 ;              ;;    ;;             ;       
+;  ;   ;;                ;              ;;    ;;             ;       
+;  ;    ;                ;   ;          ;;    ;;             ;       
+;  ;;       ;;;;   ;;;;  ;  ;  ;;;;     ; ;  ; ;  ;;;;   ;;;;;  ;;;  
+;    ;;;;   ;   ; ;    ; ; ;  ;    ;    ; ;  ; ; ;    ; ;   ;; ;   ; 
+;        ;  ;   ;     ;; ;;;  ;;;;;;    ; ;  ; ; ;    ; ;    ; ;;    
+;  ;     ;  ;   ; ;;;; ; ; ;; ;         ;  ;;  ; ;    ; ;    ;   ;;; 
+;  ;;    ;  ;   ; ;    ; ;  ; ;;   ;    ;  ;;  ; ;    ; ;   ;; ;   ; 
+;   ;;;;;   ;   ;  ;;;;; ;   ; ;;;;     ;  ;;  ;  ;;;;   ;;;;;  ;;;; 
+;                                                                    
+;                                                                    
+;                                                                    
+
 ;;- Snake Modification Functions -----------------------------------------------
 
 ;; TODO: Review this
@@ -150,17 +195,29 @@ Ideas
   (snake-dir-set sn d))
 
 (define (slither sn)
-  (snake (snake-dir sn)
-         (cons (next-head sn) (all-but-last (snake-segs sn)))))
-
+  (snake-segs-set sn (cons (next-head sn) (all-but-last (snake-segs sn)))))
 
 ;; NOTE: I had some problems with naming and variable shadowing. Error wasn't easy to debug.
 ;; I called an argument snake instead of sn
 (define (grow sn)
-  (snake (snake-dir sn) (cons (next-head sn) (snake-segs sn))))
+  (snake-segs-set sn (cons (next-head sn) (snake-segs sn))))
 
 
-;;- Goo ------------------------------------------------------------------------
+
+;                         
+;                         
+;     ;;;;                
+;    ;   ;;               
+;   ;     ;               
+;   ;        ;;;;   ;;;;  
+;   ;  ;;;; ;    ; ;    ; 
+;   ;     ; ;    ; ;    ; 
+;   ;     ; ;    ; ;    ; 
+;    ;   ;; ;    ; ;    ; 
+;     ;;; ;  ;;;;   ;;;;  
+;                         
+;                         
+;                         
 
 (define (eat goos goo-to-eat)
   (cons (fresh-goo) (remove goo-to-eat goos)))
@@ -184,6 +241,21 @@ Ideas
        (add1 (random EXPIRATION-TIME))))
 
 
+;                                                   
+;                                                   
+;   ;   ;         ;;;                               
+;   ;   ;           ;                               
+;   ;   ;   ;;;     ;    ;;;;    ;;;    ;;;;   ;;;  
+;   ;   ;  ;;  ;    ;    ;; ;;  ;;  ;   ;;  ; ;   ; 
+;   ;;;;;  ;   ;;   ;    ;   ;  ;   ;;  ;     ;     
+;   ;   ;  ;;;;;;   ;    ;   ;  ;;;;;;  ;      ;;;  
+;   ;   ;  ;        ;    ;   ;  ;       ;         ; 
+;   ;   ;  ;        ;    ;; ;;  ;       ;     ;   ; 
+;   ;   ;   ;;;;     ;;  ;;;;    ;;;;   ;      ;;;  
+;                        ;                          
+;                        ;                          
+;                        ;                          
+
 ;;- Helper functions -----------------------------------------------------------
 
 (define (close? s goo)
@@ -200,7 +272,21 @@ Ideas
   (cond [(empty? lst) lst]
         [else (take lst (sub1 len))]))
 
-;;- Rendering ------------------------------------------------------------------
+
+;                                                                 
+;                                                                 
+;   ;;;;;  ;;;;; ;;   ;  ;;;;   ;;;;;  ;;;;;  ;;;;; ;;   ;    ;;; 
+;   ;    ; ;     ;;   ;  ;   ;  ;      ;    ;   ;   ;;   ;   ;   ;
+;   ;    ; ;     ;;;  ;  ;    ; ;      ;    ;   ;   ;;;  ;  ;     
+;   ;    ; ;     ; ;  ;  ;    ; ;      ;    ;   ;   ; ;  ;  ;     
+;   ;;;;;  ;;;;; ; ;; ;  ;    ; ;;;;;  ;;;;;    ;   ; ;; ;  ;   ;;
+;   ;   ;  ;     ;  ; ;  ;    ; ;      ;   ;    ;   ;  ; ;  ;    ;
+;   ;    ; ;     ;  ;;;  ;    ; ;      ;    ;   ;   ;  ;;;  ;    ;
+;   ;    ; ;     ;   ;;  ;   ;  ;      ;    ;   ;   ;   ;;   ;   ;
+;   ;     ;;;;;; ;   ;;  ;;;;   ;;;;;  ;     ;;;;;; ;   ;;    ;;; 
+;                                                                 
+;                                                                 
+;                                                                 
 
 (define (render-pit w)
   (snake+scene (pit-snake w)
@@ -233,16 +319,30 @@ Ideas
 
 (define (goo-list+scene goos scene)
   (img-list+scene (map goo-loc goos) GOO-IMG scene))
+
+
+;                                                                              
+;                                                                              
+;   ;;;;;     ;;    ;;    ;    ;;;;        ;;;;;     ;;    ;;    ;    ;;;;   ; 
+;   ;    ;    ;;    ;;    ;   ;   ;;       ;    ;    ;;    ;;    ;   ;   ;;  ; 
+;   ;    ;   ; ;    ; ;   ;  ;     ;       ;    ;   ; ;    ; ;   ;  ;     ;  ; 
+;   ;    ;   ;  ;   ; ;;  ;  ;             ;    ;   ;  ;   ; ;;  ;  ;        ; 
+;   ;;;;;;   ;  ;   ;  ;  ;  ;  ;;;;       ;;;;;;   ;  ;   ;  ;  ;  ;  ;;;;  ; 
+;   ;     ; ;;;;;;  ;  ;; ;  ;     ;  ;;;  ;     ; ;;;;;;  ;  ;; ;  ;     ;  ; 
+;   ;     ; ;    ;  ;   ; ;  ;     ;       ;     ; ;    ;  ;   ; ;  ;     ;    
+;   ;     ;;;    ;  ;    ;;   ;   ;;       ;     ;;;    ;  ;    ;;   ;   ;;    
+;   ;;;;;; ;     ;; ;    ;;    ;;; ;       ;;;;;; ;     ;; ;    ;;    ;;; ;  ; 
+;                                                                              
+;                                                                              
+;                                                                              
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Big Bang
 
 (define (start-snake)
+  (define initial-goos (map (λ (x) (fresh-goo)) (range 5)))
   (define initial-world (pit (snake "right" (list (posn 1 1)))
-                             (list (fresh-goo)
-                                   (fresh-goo)
-                                   (fresh-goo)
-                                   (fresh-goo)
-                                   (fresh-goo))))
+                             initial-goos))
 
   (big-bang initial-world
     (on-tick next-pit TICK-RATE)
@@ -250,6 +350,22 @@ Ideas
     (to-draw render-pit)
     (stop-when dead? render-end)))
 
+
+
+;                               
+;                               
+;  ;;;;;;;                      
+;     ;                ;        
+;     ;                ;        
+;     ;    ;;;;  ;;;  ;;;  ;;;  
+;     ;   ;    ;;   ;  ;  ;   ; 
+;     ;   ;;;;;;;;     ;  ;;    
+;     ;   ;       ;;;  ;    ;;; 
+;     ;   ;;   ;;   ;  ;  ;   ; 
+;     ;    ;;;;  ;;;;  ;;  ;;;; 
+;                               
+;                               
+;                               
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tests
@@ -298,12 +414,12 @@ Ideas
               "Decrease the count of each goo in the list")
 
 
-(check-equal? (age-goo (list (goo (posn 1 1) 2)
-                             (goo (posn 1 2) 1)))
+(check-equal? (length (age-goo (list (goo (posn 1 1) 2)
+                                    (goo (posn 1 2) 1))))
 
-              (list (goo (posn 1 1) 1))
+              2
 
-              "Remove expired goo from the list")
+              "Remove expired goo and add new")
 
 
 ;;- Changing directions --------------------------------------------------------
