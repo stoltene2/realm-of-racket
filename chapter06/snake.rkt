@@ -114,13 +114,15 @@ Ideas
       (= 0 y) (= y SIZE)))
 
 
-
-
-;; TODO: Implement
 (define (render-end w)
   (overlay (text "Game Over" ENDGAME-TEXT-SIZE "red")
            (render-pit w)))
 
+
+(define (fresh-goo)
+    (goo (posn (add1 (random (sub1 SIZE)))
+               (add1 (random (sub1 SIZE))))
+         (add1 (random EXPIRATION-TIME))))
 
 ;
 ;
@@ -142,6 +144,7 @@ Ideas
 (define (snake-head sn)
   (first (snake-segs sn)))
 
+(define my-snake (snake "right" (list (posn 1 1))))
 
 (define (snake-body sn)
   (rest (snake-segs sn)))
@@ -183,7 +186,6 @@ Ideas
 
 ;;- Snake Modification Functions -----------------------------------------------
 
-;; TODO: Review this
 (define (snake-change-dir sn d)
   (snake-dir-set sn d))
 
@@ -228,10 +230,6 @@ Ideas
   (map (compose refresh decay) goos))
 
 
-(define (fresh-goo)
-  (goo (posn (add1 (random (sub1 SIZE)))
-             (add1 (random (sub1 SIZE))))
-       (add1 (random EXPIRATION-TIME))))
 
 
 ;
