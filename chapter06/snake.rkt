@@ -7,7 +7,7 @@
 (require "goo.rkt")
 (require "position.rkt")
 
-(define TICK-RATE 1/16)
+(define TICK-RATE 1/8)
 (define SIZE 29)
 (define ENDGAME-TEXT-SIZE (* 2 SIZE))
 (define EXPIRATION-TIME (* 10 (/ 1 TICK-RATE)))
@@ -52,7 +52,7 @@ Ideas
 ;
 ;
 
-(struct pit [snake goos] #:transparent)
+(struct pit [snake goos growth] #:transparent)
 (define-struct-updaters pit)
 
 (struct snake [dir segs] #:transparent)
@@ -65,9 +65,16 @@ Ideas
   (define sn (pit-snake w))
   (define goos (pit-goos w))
   (define goo-to-eat (can-eat (snake-head sn) goos))
-  (if goo-to-eat
-      (pit (grow sn) (age-goo (eat goos goo-to-eat)))
-      (pit (slither sn) (age-goo goos))))
+  (define segs-to-grow (if goo-to-eat
+                           (+ (pit-growth w) 10)
+                           (pit-growth w)))
+
+  (define updated-goos (if goo-to-eat
+                           (age-goo (eat goos goo-to-eat))
+                           (age-goo goos)))
+  (if (> segs-to-grow 0)
+      (pit (grow sn) updated-goos (sub1 segs-to-grow))
+      (pit (slither sn) updated-goos 0)))
 
 
 ;; Keyboard navigation
@@ -88,7 +95,7 @@ Ideas
   (define has-body? (cons? (rest (snake-segs sn))))
 
   (cond [(and turned-on-self? has-body?) (stop-with w)]
-        [else (pit (snake-change-dir sn d) (pit-goos w))]))
+        [else (pit-snake-set w (snake-change-dir sn d))]))
 
 ;; key-dir must be a direction
 (define (opposite-dir? sn-dir key-dir)
@@ -323,7 +330,9 @@ Ideas
 (define (start-snake)
   (define initial-goos (map (λ (x) (fresh-goo)) (range 5)))
   (define initial-world (pit (snake "right" (list (posn 1 1)))
-                             initial-goos))
+                             initial-goos
+                             ;;Growth
+                             2))
 
   (big-bang initial-world
     (on-tick next-pit TICK-RATE)
