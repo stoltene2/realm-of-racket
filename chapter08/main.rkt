@@ -38,7 +38,10 @@ this until it does not mutate state.
 |#
 
 
-(require 2htdp/image 2htdp/universe)
+(require 2htdp/image
+         2htdp/universe
+         lens
+         point-free)
 
 ;
 ;
@@ -57,20 +60,29 @@ this until it does not mutate state.
 ;
 
 ;; The OrcWorld as Data:
-(struct orc-world [player lom attack# target] #:transparent #:mutable)
+(struct/lens orc-world [player lom attack# target] #:transparent #:mutable)
 ;; A OrcWorld is a (orc-world Player [listof Monster] Nat Nat)
 ;; The third field of the world refers to the number of attacks left.
 ;; The fourth field refers to the position of the next attack target.
 
-(struct player [health agility strength] #:transparent #:mutable)
+(struct/lens player [health agility strength] #:transparent)
 ;; A Player is a (player Nat Nat Nat)
 ;; The player's fields correspond to hit points, strength, agility.
 
-(struct monster [image (health #:mutable)] #:transparent)
+(struct/lens monster [image (health #:mutable)] #:transparent)
+
 (struct orc monster [club] #:transparent)
+(define-struct-lenses orc)
+
 (struct hydra monster [] #:transparent)
+(define-struct-lenses hydra)
+
 (struct slime monster [sliminess] #:transparent)
+(define-struct-lenses slime)
+
 (struct brigand monster [] #:transparent)
+(define-struct-lenses brigand)
+
 ;; A Monster is a (monster Image Nat)
 ;;    (moster i h) is a monster at position i in the list with health h
 ;; Each monster is equipped with the index number,
@@ -380,51 +392,58 @@ this until it does not mutate state.
 (define (give-monster-turn-if-attack#=0 w)
   (when (zero? (orc-world-attack# w))
     (define player (orc-world-player w))
-    (all-monsters-attack-player player (orc-world-lom w))
-    (set-orc-world-attack#! w (random-number-of-attacks player))))
+    (define new-player (all-monsters-attack-player player (orc-world-lom w)))
+
+    (set-orc-world-attack#! w (random-number-of-attacks player))
+    (set-orc-world-player! w new-player)))
 
 ;; Player [Listof Monster] -> Void
 ;; Each monster attacks the player
 (define (all-monsters-attack-player player lom)
-  ;; Monster -> Void
-  (define (one-monster-attacks-player monster)
+  (define (one-monster-attacks-player monster player)
     (cond
       [(orc? monster)
        (player-health+ player (random- (orc-club monster)))]
       [(hydra? monster)
        (player-health+ player (random- (monster-health monster)))]
       [(slime? monster)
-       (player-health+ player -1)
-       (player-agility+ player (random- (slime-sliminess monster)))]
+       (~> player
+           (λ (p) (player-health+ p -1))
+           (λ (p) (player-agility+ p (random- (slime-sliminess monster)))))]
+
       [(brigand? monster)
        (case (random 3)
          [(0) (player-health+ player HEALTH-DAMAGE)]
          [(1) (player-agility+ player AGILITY-DAMAGE)]
          [(2) (player-strength+ player STRENGTH-DAMAGE)])]))
-  ;; -- IN --
-  (for-each one-monster-attacks-player (filter monster-alive? lom)))
+
+  (foldl one-monster-attacks-player player (filter monster-alive? lom)))
 
 ;; -----------------------------------------------------------------------------
 ;; actions on player
 
-;; [Player -> Nat] [Player Nat -> Void] Nat -> Player Nat -> Void
+;; [Player -> Nat] [Player Nat -> Void] Nat -> Player Nat -> Player
 ;; effect: change player's selector attribute by adding delta, but max out
 (define (player-update! setter selector max-value)
   (lambda (player delta)
     (setter player
-            (interval+ (selector player) delta max-value))))
+            (interval+ (selector player) delta max-value))
+    player))
 
 ;; Player Nat -> Void
-(define player-health+
-  (player-update! set-player-health! player-health MAX-HEALTH))
+(define (player-health+ p delta)
+  (define attr (lens-view player-health-lens p))
+  (lens-set player-health-lens p (interval+ attr delta MAX-HEALTH)))
 
 ;; Player Nat -> Void
-(define player-agility+
-  (player-update! set-player-agility! player-agility MAX-AGILITY))
+(define (player-agility+ p delta)
+  (define attr (lens-view player-agility-lens p))
+  (lens-set player-agility-lens p (interval+ attr delta MAX-AGILITY)))
 
 ;; Player Nat -> Void
-(define player-strength+
-  (player-update! set-player-strength! player-strength MAX-STRENGTH))
+(define (player-strength+ p delta)
+  (define attr (lens-view player-strength-lens p))
+  (lens-set player-strength-lens p (interval+ attr delta MAX-STRENGTH)))
 
 ;
 ;
@@ -681,38 +700,32 @@ this until it does not mutate state.
   ;; testing basic player manipulations
 
   (check-equal? (let ([p (player 1 0 0)])
-                  (player-health+ p 5)
-                  p)
+                  (player-health+ p 5))
                 (player 6 0 0))
+
   (check-equal? (let ([p (player 0 1 0)])
-                  (player-agility+ p 5)
-                  p)
+                  (player-agility+ p 5))
                 (player 0 6 0))
 
   (check-equal? (let ([p (player 0 0 1)])
-                  (player-strength+ p 5)
-                  p)
+                  (player-strength+ p 5))
                 (player 0 0 6))
 
   (check-equal? (let ([p (player 5 5 5)])
-                  (all-monsters-attack-player p (list (orc 'image 1 1)))
-                  p)
+                  (all-monsters-attack-player p (list (orc 'image 1 1))))
                 (player 4 5 5))
 
   (check-equal? (let ([p (player 5 5 5)])
-                  (all-monsters-attack-player p (list (hydra 'image 1)))
-                  p)
+                  (all-monsters-attack-player p (list (hydra 'image 1))))
                 (player 4 5 5))
 
   (check-equal? (let ([p (player 5 5 5)])
-                  (all-monsters-attack-player p (list (slime 'image 1 1)))
-                  p)
+                  (all-monsters-attack-player p (list (slime 'image 1 1))))
                 (player 4 4 5))
 
   (check member
          (let ([p (player 5 5 5)])
-           (all-monsters-attack-player p (list (brigand 'image 1)))
-           p)
+           (all-monsters-attack-player p (list (brigand 'image 1))))
          (list (player 3 5 5)
                (player 5 2 5)
                (player 5 5 1)))
@@ -747,10 +760,10 @@ this until it does not mutate state.
        (define pl (player MAX-HEALTH MAX-AGILITY MAX-STRENGTH))
        (define mon (first (initialize-monsters)))
        (begin
-         (all-monsters-attack-player pl (list mon))
-         (check-true (or (< (player-health pl) MAX-HEALTH)
-                         (< (player-agility pl) MAX-AGILITY)
-                         (< (player-strength pl) MAX-STRENGTH)))))))
+         (define new-pl (all-monsters-attack-player pl (list mon)))
+         (check-true (or (< (player-health new-pl) MAX-HEALTH)
+                         (< (player-agility new-pl) MAX-AGILITY)
+                         (< (player-strength new-pl) MAX-STRENGTH)))))))
 
   ;; Property:
   ;; If there are monster, then the player will
@@ -762,10 +775,10 @@ this until it does not mutate state.
        (define monsters (initialize-monsters))
        (define wor (orc-world pl monsters 0 0))
        (begin
-         (all-monsters-attack-player pl monsters)
-         (check-true (or (< (player-health pl) MAX-HEALTH)
-                         (< (player-agility pl) MAX-AGILITY)
-                         (< (player-strength pl) MAX-STRENGTH)))))))
+         (define updated-player (all-monsters-attack-player pl monsters))
+         (check-true (or (< (player-health updated-player) MAX-HEALTH)
+                         (< (player-agility updated-player) MAX-AGILITY)
+                         (< (player-strength updated-player) MAX-STRENGTH)))))))
 
   ;; Property: The health of the targeted monster, m,
   ;; is less than what it was. and
@@ -800,23 +813,25 @@ this until it does not mutate state.
                   (let ([p (initialize-player)])
                     (all-monsters-attack-player p (list AN-ORC))
                     (player-health p))))
+
   (check-true (> (player-health (initialize-player))
                  (let ([p (initialize-player)])
-                   (all-monsters-attack-player p (list A-HYDRA))
-                   (player-health p))))
+                   (player-health (all-monsters-attack-player p (list A-HYDRA))))))
+
   (check-true (< (let ([p (initialize-player)])
-                   (all-monsters-attack-player p (list A-SLIME))
-                   (player-agility p))
-                 (let ([p (initialize-player)])
-                   (player-agility p))))
-  (check-true (let ([p (initialize-player)])
-                (all-monsters-attack-player p (list A-BRIGAND))
-                (or (= (player-health p)
+                   (player-agility (all-monsters-attack-player p (list A-SLIME))))
+                 (player-agility (initialize-player))))
+
+  (check-true (let* ([p (initialize-player)]
+                    [new-p (all-monsters-attack-player p (list A-BRIGAND))])
+
+                (or (= (player-health new-p)
                        (- (player-health (initialize-player)) 2))
-                    (= (player-agility p)
+                    (= (player-agility new-p)
                        (- (player-agility (initialize-player)) 3))
-                    (= (player-strength p)
+                    (= (player-strength new-p)
                        (- (player-strength (initialize-player)) 4)))))
+
   (check-equal? (length (orc-world-lom WORLD1)) MONSTER#)
   (check-equal? (orc-world-player WORLD1) (orc-world-player WORLD1))
 
@@ -824,21 +839,21 @@ this until it does not mutate state.
 
   (prop:monster-attack-player-dec 1000)
   (prop:monsters-attack-player-dec 1000)
+
   (check-true (or (> (player-health (orc-world-player (WORLD2)))
                      (player-health (orc-world-player
                                      (let ([w (WORLD2)])
-                                       (all-monsters-attack-player (orc-world-player w) (orc-world-lom w))
-                                       w))))
+                                       (lens-set orc-world-player-lens w (all-monsters-attack-player (orc-world-player w) (orc-world-lom w)))))))
+
                   (> (player-strength (orc-world-player (WORLD2)))
                      (player-strength (orc-world-player
                                        (let ([w (WORLD2)])
-                                         (all-monsters-attack-player (orc-world-player w) (orc-world-lom w))
-                                         w))))
+                                         (lens-set orc-world-player-lens w (all-monsters-attack-player (orc-world-player w) (orc-world-lom w)))))))
+
                   (> (player-agility (orc-world-player (WORLD2)))
                      (player-agility (orc-world-player
                                       (let ([w (WORLD2)])
-                                        (all-monsters-attack-player (orc-world-player w) (orc-world-lom w))
-                                        w))))))
+                                        (lens-set orc-world-player-lens w (all-monsters-attack-player (orc-world-player w) (orc-world-lom w)))))))))
 
   ;; testing the player's actions
 
