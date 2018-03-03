@@ -69,7 +69,7 @@ this until it does not mutate state.
 ;; A Player is a (player Nat Nat Nat)
 ;; The player's fields correspond to hit points, strength, agility.
 
-(struct/lens monster [image (health #:mutable)] #:transparent)
+(struct/lens monster [image health] #:transparent)
 
 (struct orc monster [club] #:transparent)
 (define-struct-lenses orc)
@@ -221,24 +221,24 @@ this until it does not mutate state.
 ;; OrcWorld Key-Event -> OrcWorld
 ;; act on key events by the player, if the player has attacks left
 (define (player-acts-on-monsters w k)
-  (cond
-    [(zero? (orc-world-attack# w)) w]
+  (define updated-world (cond
+                         [(zero? (orc-world-attack# w)) w]
 
-    [(key=? "s" k) (stab w)]
-    [(key=? "h" k) (heal w)]
-    [(key=? "f" k) (flail w)]
+                         [(key=? "s" k) (stab w)]
+                         [(key=? "h" k) (heal w)]
+                         [(key=? "f" k) (flail w)]
 
-    [(key=? "right" k) (move-target w +1)]
-    [(key=? "left" k)  (move-target w -1)]
-    [(key=? "down" k)  (move-target w (+ PER-ROW))]
-    [(key=? "up" k)    (move-target w (- PER-ROW))]
+                         [(key=? "right" k) (move-target w +1)]
+                         [(key=? "left" k)  (move-target w -1)]
+                         [(key=? "down" k)  (move-target w (+ PER-ROW))]
+                         [(key=? "up" k)    (move-target w (- PER-ROW))]
 
-    [(key=? "e" k) (end-turn w)]
-;;    [(key=? "n" k) (initialize-orc-world)]
+                         [(key=? "e" k) (end-turn w)]
+                         [(key=? "n" k) (initialize-orc-world)]
 
-    [else w])
-  (give-monster-turn-if-attack#=0 w)
-  w)
+                         [else w]))
+
+  (give-monster-turn-if-attack#=0 updated-world))
 
 ;; OrcWorld -> Image
 ;; renders the orc world
@@ -328,19 +328,25 @@ this until it does not mutate state.
 ;;     1)
 ;; (orc-world (player 5 5 5) (list (monster 0 2) (monster 1 3)) 1 1)
 (define (move-target w n)
-  (set-orc-world-target! w (modulo (+ n (orc-world-target w)) MONSTER#)))
+  (set-orc-world-target! w (modulo (+ n (orc-world-target w)) MONSTER#))
+  ;; TODO: Explicitly return world until refactored
+  w)
 
 ;; OrcWorld -> Void
 ;; Effect: ends the player's turn by setting the number of attacks to 0
 (define (end-turn w)
-  (set-orc-world-attack#! w 0))
+  (set-orc-world-attack#! w 0)
+  ;; TODO: Explicitly return world until refactored
+  w)
 
 ;; OrcWorld -> Void
 ;; Effect: reduces the number of remaining attacks for this turn
 ;;   and increases the player's health level
 (define (heal w)
   (decrease-attack# w)
-  (player-health+ (orc-world-player w) HEALING))
+  (player-health+ (orc-world-player w) HEALING)
+  ;; TODO: Explicitly return world until refactored
+  w)
 
 ;; OrcWorld -> Void
 ;; Effect: reduces a targeted monster's health
@@ -350,12 +356,20 @@ this until it does not mutate state.
   (define damage
     (random-quotient (player-strength (orc-world-player w))
                      STAB-DAMAGE))
-  (damage-monster target damage))
+
+  ;; TODO: HERE is where I left off. I'm going to need a lens to zoom
+  ;; in and update the current target. current-target-lens Then I can
+  ;; do (lens-set orc-world-current-target-lens (damage-monster target
+  ;; damage))
+  (damage-monster target damage)
+  ;; TODO: Explicitly return world until refactored
+  w)
 
 ;; OrcWorld -> Void
 ;; Effect: damages a random number of live monsters,
 ;;   determined by strength of the player
 ;;   starting with the currently targeted monster
+;; TODO: Make this not modify the world
 (define (flail w)
   (decrease-attack# w)
   (define target (current-target w))
@@ -366,7 +380,11 @@ this until it does not mutate state.
                       FLAIL-DAMAGE)
      (length alive)))
   (define getem (cons target (take alive pick#)))
-  (for-each (lambda (m) (damage-monster m 1)) getem))
+
+  ;;todo fix this
+  (for-each (lambda (m) (damage-monster m 1)) getem)
+  ;; TODO: Explicitly return world until refactored
+  w)
 
 ;; OrcWorld -> Void
 ;; Effect: decrease number of remaining attacks
@@ -376,7 +394,7 @@ this until it does not mutate state.
 ;; Monster Nat -> Void
 ;; Effect: reduces the hit-strength of a monster
 (define (damage-monster m delta)
-  (set-monster-health! m (interval- (monster-health m) delta)))
+  (lens-set monster-health-lens m (interval- (monster-health m) delta)))
 
 ;; World -> Monster
 (define (current-target w)
@@ -390,15 +408,22 @@ this until it does not mutate state.
 ;; > (orc-world (player 4 4 4) empty 3 3)
 ;; (orc-world (player 4 4 4) empty 3 3)
 (define (give-monster-turn-if-attack#=0 w)
-  (when (zero? (orc-world-attack# w))
-    (define player (orc-world-player w))
-    (define new-player (all-monsters-attack-player player (orc-world-lom w)))
+  (if (zero? (orc-world-attack# w))
+      (let ([player (orc-world-player w)])
+        (lens-set/list w
+                       orc-world-attack#-lens
+                       (random-number-of-attacks player)
 
-    (set-orc-world-attack#! w (random-number-of-attacks player))
-    (set-orc-world-player! w new-player)))
+                       orc-world-player-lens
+                       (all-monsters-attack-player player (orc-world-lom w))))
+      ;; Else
+      w))
 
 ;; Player [Listof Monster] -> Void
 ;; Each monster attacks the player
+#|
+1. player modification functions need to return the player
+|#
 (define (all-monsters-attack-player player lom)
   (define (one-monster-attacks-player monster player)
     (cond
@@ -407,7 +432,11 @@ this until it does not mutate state.
       [(hydra? monster)
        (player-health+ player (random- (monster-health monster)))]
       [(slime? monster)
+       ;;TODO: How can I make this more Haskell like?
        (~> player
+           ;;(curryr player-health+ -1)
+           ;;(curryr player-agility+ (random- (slime-sliminess monster)))
+           ;; TODO: I can change the argument order, too.
            (λ (p) (player-health+ p -1))
            (λ (p) (player-agility+ p (random- (slime-sliminess monster)))))]
 
